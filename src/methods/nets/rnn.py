@@ -6,7 +6,9 @@ from base_net import BaseNet
 # the net has a fixed architecture, but each layer's hyperparameters
 # can be altered by passing a dict to this class
 
+
 class CNN(BaseNet):
+
     def __init__(self, params, actions, input_shape=(4, 64, 64)):
         super(CNN, self).__init__()
         self.actions = actions
