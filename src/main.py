@@ -1,4 +1,10 @@
-import argparse
+from methods.dqn import DQN
+
 
 def main():
-    pass
+    dqn = DQN()
+    dqn.train()
+
+
+if __name__ == "__main__":
+    main()

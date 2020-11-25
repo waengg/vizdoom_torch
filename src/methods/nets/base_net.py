@@ -6,9 +6,9 @@ from abc import ABC, abstractmethod
 
 
 class BaseNet(nn.Module, ABC):
-    def __init__(self, params):
+    def __init__(self, params, actions):
         self.params = params
-        self.n_actions = self.params['n_actions']
+        self.n_actions = actions
         super(BaseNet, self).__init__()
 
     @abstractmethod
@@ -22,6 +22,10 @@ class BaseNet(nn.Module, ABC):
     def preprocess(self, state):
         pass
 
+    @abstractmethod
+    def to_net(self, state):
+        pass
+
     def next_action(self, state, steps=None):
         """
         returns the next best action
@@ -32,8 +36,9 @@ class BaseNet(nn.Module, ABC):
         if steps:
             if random() <= self.eps(steps):
                 return randint(0, self.n_actions-1)
-        qs = self.forward(state)
-        return torch.max(qs, axis=1).data.numpy()[0]
+        s_net = self.to_net(state)
+        qs = self.forward(s_net)
+        return torch.max(qs, axis=1)[1].cpu().numpy()[0]
 
     @abstractmethod
     def train(self, batch):

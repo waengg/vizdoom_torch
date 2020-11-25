@@ -7,7 +7,7 @@ class Replay(ABC):
         pass
 
     @abstractmethod
-    def store(self, x):
+    def add_transition(self, x):
         pass
 
     @abstractmethod
