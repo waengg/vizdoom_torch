@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 
-class classname(ABC):
+class Replay(ABC):
 
     def __init__(self, size):
         pass
