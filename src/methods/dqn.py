@@ -1,4 +1,5 @@
 import torch
+import random
 import numpy as np
 from base import BaseMethod
 from memories.inmemory_replay import InMemoryReplay
@@ -13,7 +14,8 @@ class DQN(BaseMethod):
         # self, params, actions, input_shape=(4, 64, 64)):
         self.doom = vzd.DoomGame()
         self.init_doom()
-        self.memory = InMemoryReplay()
+        self.memory = InMemoryReplay(size=params['mem_size'], input_shape=params['input_shape'])
+        self.test_memory = InMemoryReplay(size=params['dry_size'], input_shape=params['input_shape'])
         self.net = CNN(None, self.doom.get_available_buttons_size)
         self.params = params if params is not None \
             else common.DEFAULT_PARAMS
@@ -37,7 +39,6 @@ class DQN(BaseMethod):
 
                 t = self.doom.is_episode_finished()
 
-                loss = self.net.train()
                 self.memory.add_transition(s, a, s_p, r, t)
 
             self.curr_state.clear()
