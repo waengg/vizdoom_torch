@@ -145,12 +145,18 @@ class DQN(BaseMethod):
 
 
             avg_q = self.average_q_test()
-            self.write_tensorboard(epi_l, epi_r, avg_q)
+            self.write_tensorboard(writer, epi_l, epi_r, avg_q)
             self.average_qs.append(avg_q)
             print(f'Episode {episode} ended. Reward earned: {epi_r}. Episode loss: {epi_l}. Avg. Q after episode: {avg_q}')
 
             self.curr_state.clear()
             self.next_state.clear()
+
+    def write_tensorboard(self, w, l, r, q):
+        w.add_scalar('Reward per episode', r)
+        w.add_scalar('Avg Q per episode', q)
+        w.add_scalar('Loss per episode', l)
+        w.flush()
 
     def state_to_net_state(self, state, d):
         s = self.net.preprocess(state)
