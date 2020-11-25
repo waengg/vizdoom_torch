@@ -42,7 +42,7 @@ class BaseNet(nn.Module, ABC):
         return torch.max(qs, axis=1)[1].cpu().numpy()[0]
 
     @abstractmethod
-    def train(self, batch):
+    def train_(self, batch):
         pass
 
     def count_parameters(self):

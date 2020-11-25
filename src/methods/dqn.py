@@ -94,9 +94,12 @@ class DQN(BaseMethod):
         # init doom env
         # load config
         training_steps = 0
-        writer = self.create_tensorboard()
         print(f'Training model {self.net.name}. Parameters: {self.net.count_parameters()}.')
         self.dry_run(self.params['dry_size'])
+        writer = self.create_tensorboard()
+        s, _, _, _, _ = self.test_memory.get_batch(10)
+        s = torch.from_numpy(s).to(self.net.device)
+        writer.add_graph(self.net, input_to_model=s, verbose=True)
         for episode in range(self.params['episodes']):
 
             epi_l = 0.
@@ -131,7 +134,7 @@ class DQN(BaseMethod):
                 if not batch:
                     continue
 
-                loss = self.net.train(batch)
+                loss = self.net.train_(batch)
                 training_steps += 1
 
                 if training_steps % 10000 == 0:
@@ -140,9 +143,9 @@ class DQN(BaseMethod):
                 epi_l += loss
                 epi_r += r
 
-                writer.add_scalar('')
 
             avg_q = self.average_q_test()
+            self.write_tensorboard(epi_l, epi_r, avg_q)
             self.average_qs.append(avg_q)
             print(f'Episode {episode} ended. Reward earned: {epi_r}. Episode loss: {epi_l}. Avg. Q after episode: {avg_q}')
 

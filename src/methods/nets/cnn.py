@@ -58,11 +58,12 @@ class CNN(BaseNet):
         self.optim = torch.optim.Adam(self.parameters(), lr=1e-4)
 
     def to_net(self, state):
-        if state.shape != 4:
+        if len(state.shape) != 4:
             s = np.expand_dims(state, axis=0)
         else:
             s = np.copy(state)
-        return s
+        t = torch.from_numpy(s).type(torch.FloatTensor).to(self.device)
+        return t
 
     def eps(self, steps):
         return self.end_eps if steps >= self.anneal_until else \
@@ -70,8 +71,7 @@ class CNN(BaseNet):
             self.anneal_until * steps)
 
     def forward(self, i):
-        t = torch.from_numpy(i).type(torch.FloatTensor).to(self.device)
-        x = F.relu(self.conv1(t))
+        x = F.relu(self.conv1(i))
         x = F.relu(self.conv2(x))
         x = x.flatten(1)
         x = F.relu(self.fc1(x))
@@ -99,16 +99,18 @@ class CNN(BaseNet):
             f_q[_i, _a] = _r if _t else _r + q[_i] * self.gamma
         return f_q
 
-    def train(self, batch):
+    def train_(self, batch):
         # memory is built as State x Action x Next State x Reward x Is Terminal
         s, a, s_p, r, t = batch[0], batch[1], batch[2], batch[3], batch[4]
         # s = torch.from_numpy(s)
         # s_p = torch.from_numpy(s_p)
         with torch.no_grad():
-            qs_p = self.forward(s_p)
+            s_p_torch = self.to_net(s_p)
+            qs_p = self.forward(s_p_torch)
             qs_p_cpu = qs_p.cpu().data.numpy()
         self.optim.zero_grad()
-        qs = self.forward(s)
+        s_torch = self.to_net(s)
+        qs = self.forward(s_torch)
         qs_cpu = qs.cpu().data.numpy()
         f_q = torch.from_numpy(self.build_loss(qs_cpu, qs_p_cpu, a, r, t)).to(self.device)
         # print(f_q)
