@@ -9,7 +9,7 @@ DEFAULT_PARAMS = {
     'batch_size': 32,
     'doom_config': f'{ROOT_DIR}/configs/e1m1.cfg',
     'mem_size': 100000,
-    'dry_size': 10,
+    'dry_size': 10000,
     'input_shape': (4, 64, 64),
     'history': 4,
     'frameskip': 4,

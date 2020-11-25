@@ -18,9 +18,13 @@ class CNN(BaseNet):
         super().__init__(params, actions)
         self.actions = actions
         self.gamma = gamma
+        self.name = 'basic_cnn'
         self.batch_size = batch_size
         self.input_shape = input_shape
         self.n_frames = input_shape[0]
+        self.anneal_until = 500000
+        self.end_eps = 0.1
+        self.start_eps = 1.
         self.l = {}  # noqa: E741
         self.l["conv1"] = {
             "w": input_shape[1] - 8 + 1,
@@ -51,7 +55,7 @@ class CNN(BaseNet):
         self.to(self.device)
 
         self.loss = nn.MSELoss()
-        self.optim = torch.optim.Adam(self.parameters())
+        self.optim = torch.optim.Adam(self.parameters(), lr=1e-4)
 
     def to_net(self, state):
         if state.shape != 4:
@@ -59,6 +63,11 @@ class CNN(BaseNet):
         else:
             s = np.copy(state)
         return s
+
+    def eps(self, steps):
+        return self.end_eps if steps >= self.anneal_until else \
+            self.start_eps - ((self.start_eps - self.end_eps) /
+            self.anneal_until * steps)
 
     def forward(self, i):
         t = torch.from_numpy(i).type(torch.FloatTensor).to(self.device)
@@ -78,23 +87,20 @@ class CNN(BaseNet):
 
     def build_loss(self, qs, qs_p, a, r, t):
         # torch.from_numpy
-        i = np.stack([np.zeros((self.batch_size,)), np.arange(0, self.batch_size), a]).astype('int32')
-        qs[i] = self.future_q(qs, qs_p, i, r, t)
-        return [qs[i] if i != a else r for i in range(self.n_actions)]
+        return self.future_q(qs, qs_p, a, r, t)
+        # return [qs[i] if i != a else r for i in range(self.n_actions)]
 
-    def future_q(self, qs, qs_p, i, r, t):
+    def future_q(self, qs, qs_p, a, r, t):
         f_q = np.copy(qs)
-        print(i)
+        q = np.argmax(qs_p, axis=1)
         for _i, _t in enumerate(t):
-            q = qs_p[i[1, _i]]
-            print(qs_p)
-            f_q[i[1, _i]] = r if _t else r + q * self.gamma
+            _r = r[_i]
+            _a = a[_i]
+            f_q[_i, _a] = _r if _t else _r + q[_i] * self.gamma
         return f_q
 
     def train(self, batch):
         # memory is built as State x Action x Next State x Reward x Is Terminal
-        print('len is', len(batch))
-        print(*batch)
         s, a, s_p, r, t = batch[0], batch[1], batch[2], batch[3], batch[4]
         # s = torch.from_numpy(s)
         # s_p = torch.from_numpy(s_p)
@@ -104,11 +110,12 @@ class CNN(BaseNet):
         self.optim.zero_grad()
         qs = self.forward(s)
         qs_cpu = qs.cpu().data.numpy()
-        qs_p = self.build_loss(qs_cpu, qs_p_cpu, a, r, t)
-        self.loss(qs, qs_p)
-        self.loss.backward()
+        f_q = torch.from_numpy(self.build_loss(qs_cpu, qs_p_cpu, a, r, t)).to(self.device)
+        # print(f_q)
+        loss = self.loss(qs.float(), f_q.float())
+        loss.backward()
         self.optim.step()
-        return self.loss.item()
+        return loss.item()
 
 # net = CNN(None, 5)
 # t = torch.rand((1, 4, 64, 64))

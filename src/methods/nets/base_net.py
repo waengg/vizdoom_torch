@@ -34,7 +34,8 @@ class BaseNet(nn.Module, ABC):
         returns: the index of the best action
         """
         if steps:
-            if random() <= self.eps(steps):
+            eps = self.eps(steps)
+            if random() <= eps:
                 return randint(0, self.n_actions-1)
         s_net = self.to_net(state)
         qs = self.forward(s_net)
@@ -43,3 +44,6 @@ class BaseNet(nn.Module, ABC):
     @abstractmethod
     def train(self, batch):
         pass
+
+    def count_parameters(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)

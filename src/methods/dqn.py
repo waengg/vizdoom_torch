@@ -3,6 +3,9 @@ import random
 import numpy as np
 from collections import deque
 import cv2
+import time
+import os
+from torch.utils.tensorboard import SummaryWriter
 
 from .base import BaseMethod
 from .memories.inmemory_replay import InMemoryReplay
@@ -29,6 +32,7 @@ class DQN(BaseMethod):
         self.net = CNN(None, self.doom.get_available_buttons_size())
         self.curr_state = deque(maxlen=self.params['history'])
         self.next_state = deque(maxlen=self.params['history'])
+        self.average_qs = []
 
     def apply_action(self, a):
         frame_skip = self.params['frameskip']
@@ -64,25 +68,34 @@ class DQN(BaseMethod):
                 # print(s_p)
 
                 self.test_memory.add_transition(s, a_, s_p, r, t)
+
                 curr += 1
-                if curr % 100 == 0:
-                    print(curr)
                 if curr >= steps:
                     break
 
             self.curr_state.clear()
             self.next_state.clear()
-        print('Dry-run finished.')
+        avg_q = self.average_q_test()
+        print(f'Dry-run finished. Starting avg. Q: {avg_q}')
 
     def init_doom(self):
         self.doom.load_config(self.params['doom_config'])
         self.doom.init()
         print('Doom initialized.')
 
+    def create_tensorboard(self):
+        src_dir = os.environ['VZD_TORCH_DIR']
+        scenario = self.params['doom_config'].split('/')[-1].split('.')[0]
+        log_path = f'{src_dir}/logs/{scenario}/{self.net.name}/try_{time.time()}'
+        os.makedirs(log_path)
+        return SummaryWriter(log_dir=log_path)
+
     def train(self):
         # init doom env
         # load config
         training_steps = 0
+        writer = self.create_tensorboard()
+        print(f'Training model {self.net.name}. Parameters: {self.net.count_parameters()}.')
         self.dry_run(self.params['dry_size'])
         for episode in range(self.params['episodes']):
 
@@ -102,8 +115,12 @@ class DQN(BaseMethod):
                 r = self.apply_action(a)
                 r = self.normalize_reward(r)
 
-                next_state = self.doom.get_state().screen_buffer
-                print(next_state.shape)
+                t = self.doom.is_episode_finished()
+                if t:
+                    next_state = state
+                else:
+                    next_state = self.doom.get_state().screen_buffer
+
                 s_p = self.state_to_net_state(next_state, self.next_state)
 
                 t = self.doom.is_episode_finished()
@@ -115,10 +132,19 @@ class DQN(BaseMethod):
                     continue
 
                 loss = self.net.train(batch)
+                training_steps += 1
+
+                if training_steps % 10000 == 0:
+                    self.serialize_model(training_steps)
+
                 epi_l += loss
                 epi_r += r
 
-            print(f'Episode {episode} ended. Reward earned: {epi_r}. Episode loss: {epi_l}.')
+                writer.add_scalar('')
+
+            avg_q = self.average_q_test()
+            self.average_qs.append(avg_q)
+            print(f'Episode {episode} ended. Reward earned: {epi_r}. Episode loss: {epi_l}. Avg. Q after episode: {avg_q}')
 
             self.curr_state.clear()
             self.next_state.clear()
@@ -137,3 +163,19 @@ class DQN(BaseMethod):
 
     def normalize_reward(self, r):
         return r
+
+    def average_q_test(self):
+        qs = 0.
+        for s in self.test_memory.s:
+            s_net = self.net.to_net(s)
+            qs += torch.max(self.net.forward(s_net)).cpu().data.numpy()
+        qs = qs / self.test_memory.max_size
+        return qs
+
+    def serialize_model(self, steps):
+        base_dir = os.environ['VZD_TORCH_DIR']
+        scenario = self.params['doom_config'].split('/')[-1].split('.')[0]
+        scenario_dir = f'{base_dir}/weights/{scenario}'
+        os.makedirs(scenario_dir)
+        path = f'{scenario_dir}/{self.net.name}_{scenario}_{time.time()}.pt'
+        torch.save(self.net.state_dict(), path)

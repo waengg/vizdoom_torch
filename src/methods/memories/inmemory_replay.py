@@ -14,7 +14,6 @@ class InMemoryReplay(Replay):
         self.t = np.zeros(size, dtype='float32')
         self.curr = 0
         self.max_size = size
-        print(size)
 
     def add_transition(self, s, a, s_p, r, t):
         s = np.squeeze(s)
@@ -27,6 +26,5 @@ class InMemoryReplay(Replay):
         self.curr = min(self.curr + 1, self.max_size)
 
     def get_batch(self, batch_size):
-        print(self.curr)
         i = np.random.randint(0, self.curr, size=(batch_size,))
         return self.s[i], self.a[i], self.s_p[i], self.r[i], self.t[i]
