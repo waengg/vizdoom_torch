@@ -29,24 +29,24 @@ class CNN(BaseNet):
         self.l["conv1"] = {
             "w": input_shape[1] - 8 + 1,
             "h": input_shape[2] - 8 + 1,
-            "c": 32
+            "c": 64
         }
         self.l["conv2"] = {
             "w": self.l["conv1"]["w"] - 4 + 1,
             "h": self.l["conv1"]["h"] - 4 + 1,
-            "c": 64
+            "c": 96
         }
         self.l["fc1"] = {
-            "f": 128
+            "f": 256
         }
         self.l["out"] = {
             "f": self.actions
         }
-        self.conv1 = nn.Conv2d(input_shape[0], 32, [8, 8])
-        self.conv2 = nn.Conv2d(self.l["conv1"]["c"], 64, [4, 4])
+        self.conv1 = nn.Conv2d(input_shape[0], 64, [8, 8])
+        self.conv2 = nn.Conv2d(self.l["conv1"]["c"], 96, [4, 4])
         self.fc1 = nn.Linear(self.l["conv2"]["w"] *
                              self.l["conv2"]["h"] *
-                             self.l["conv2"]["c"], 128)
+                             self.l["conv2"]["c"], 256)
         self.out = nn.Linear(self.l["fc1"]["f"], self.actions)
 
         gpu = common.DEVICE_NUMBER
