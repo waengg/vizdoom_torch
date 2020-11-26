@@ -18,13 +18,17 @@ class InMemoryReplay(Replay):
     def add_transition(self, s, a, s_p, r, t):
         s = np.squeeze(s)
         s_p = np.squeeze(s_p)
-        self.s[self.curr] = s
-        self.a[self.curr] = a
-        self.s_p[self.curr] = s_p
-        self.r[self.curr] = r
-        self.t[self.curr] = t
-        self.curr = min(self.curr + 1, self.max_size)
+        i = self.curr % self.max_size
+        self.s[i] = s
+        self.a[i] = a
+        self.s_p[i] = s_p
+        self.r[i] = r
+        self.t[i] = t
+        # self.curr = min(self.curr + 1, self.max_size)
+        self.curr += 1
+        if self.curr % 10000 == 0:
+            print(f'Current memory size: {self.curr}')
 
     def get_batch(self, batch_size):
-        i = np.random.randint(0, self.curr, size=(batch_size,))
+        i = np.random.randint(0, min(self.curr, self.max_size), size=(batch_size,))
         return self.s[i], self.a[i], self.s_p[i], self.r[i], self.t[i]

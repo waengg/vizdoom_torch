@@ -11,6 +11,7 @@ import datetime
 from .base import BaseMethod
 from .memories.inmemory_replay import InMemoryReplay
 from .nets.cnn import CNN
+from .nets.rnd import RND
 import vizdoom as vzd
 from . import common
 from matplotlib import pyplot as plt
@@ -31,9 +32,30 @@ class DQN(BaseMethod):
         self.memory = InMemoryReplay(size=self.params['mem_size'], input_shape=self.params['input_shape'])
         self.test_memory = InMemoryReplay(size=self.params['dry_size'], input_shape=self.params['input_shape'])
         self.net = CNN(None, self.doom.get_available_buttons_size())
+        self.target_net = CNN(None, self.doom.get_available_buttons_size())
         self.curr_state = deque(maxlen=self.params['history'])
         self.next_state = deque(maxlen=self.params['history'])
         self.average_qs = []
+        self.rnd = RND()
+        self.train_skip = 8
+        print(f'RND has {self.rnd.count_parameters()} parameters.')
+        self.target_rnd = RND()
+
+    def rnd_reward(self, s):
+        s_rnd = self.net.to_net(s)
+        f_rnd = self.rnd.forward(s_rnd)
+        with torch.no_grad():
+            f_target = self.target_rnd.forward(s_rnd).detach()
+        return torch.pow(f_target - f_rnd, 2).sum()
+
+    def train_rnd(self, s):
+        self.rnd.optim.zero_grad()
+        t = self.rnd_reward(s)
+        # y_pred = self.rnd.forward(s_rnd)
+        # y_true = self.target_rnd.forward(s_rnd)
+        t.backward()
+        self.rnd.optim.step()
+
 
     def apply_action(self, a):
         frame_skip = self.params['frameskip']
@@ -94,7 +116,8 @@ class DQN(BaseMethod):
     def train(self):
         # init doom env
         # load config
-        training_steps = 0
+        training_steps = 1
+        skip = 0
         print(f'Training model {self.net.name}. Parameters: {self.net.count_parameters()}.')
         self.dry_run(self.params['dry_size'])
         writer = self.create_tensorboard()
@@ -118,7 +141,10 @@ class DQN(BaseMethod):
                 a_ = self.net.next_action(s, training_steps)
                 a = self.build_action(a_)
                 r = self.apply_action(a)
+                i_r = self.rnd_reward(s).detach().clamp(-1., 1.).item()
                 r = self.normalize_reward(r)
+                r_combined = r + i_r
+                # print(r_combined)
 
                 t = self.doom.is_episode_finished()
                 if t:
@@ -130,19 +156,26 @@ class DQN(BaseMethod):
 
                 t = self.doom.is_episode_finished()
 
-                self.memory.add_transition(s, a_, s_p, r, t)
+                self.memory.add_transition(s, a_, s_p, r_combined, t)
 
-                batch = self.memory.get_batch(self.batch_size)
-                if not batch:
-                    continue
+                if skip == self.train_skip:
+                    batch = self.memory.get_batch(self.batch_size)
+                    if not batch:
+                        continue
 
-                loss = self.net.train_(batch)
-                training_steps += 1
+                    loss = self.net.train_(batch, self.target_net)
+                    epi_l += loss
+                    self.train_rnd(batch[0])
+                    training_steps += 1
+                    skip = 0
+                else:
+                    skip += 1
+
+                if training_steps % 5000 == 0:
+                    self.target_net.load_state_dict(self.net.state_dict())
 
                 if training_steps % 10000 == 0:
                     self.serialize_model(training_steps)
-
-                epi_l += loss
                 epi_r += r
 
             elapsed_time = time.time() - start_time
@@ -176,13 +209,13 @@ class DQN(BaseMethod):
         return r
 
     def average_q_test(self):
-        qs = 0.
+        qs = np.zeros((self.test_memory.max_size))
         for i in range(0, len(self.test_memory.s), 32):
             end = min(i + 32, self.test_memory.curr)
             s = self.test_memory.s[i:end]
             s_net = self.net.to_net(s)
-            qs += torch.max(self.net.forward(s_net)).cpu().data.numpy()
-        qs = qs / self.test_memory.max_size
+            qs[i:end] = torch.max(self.net.forward(s_net), axis=1)[0].cpu().data.numpy()
+        qs = np.sum(qs) / self.test_memory.max_size
         return qs
 
     def serialize_model(self, steps):

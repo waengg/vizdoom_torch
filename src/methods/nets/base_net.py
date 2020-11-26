@@ -11,18 +11,18 @@ class BaseNet(nn.Module, ABC):
         self.n_actions = actions
         super(BaseNet, self).__init__()
 
-    @abstractmethod
+
     def forward(self, x):
         pass
 
     def eps(self, steps):
         return 0.01
 
-    @abstractmethod
+
     def preprocess(self, state):
         pass
 
-    @abstractmethod
+
     def to_net(self, state):
         pass
 
@@ -35,13 +35,14 @@ class BaseNet(nn.Module, ABC):
         """
         if steps:
             eps = self.eps(steps)
+            # eps = self.eps_exp(steps)
             if random() <= eps:
                 return randint(0, self.n_actions-1)
         s_net = self.to_net(state)
         qs = self.forward(s_net)
         return torch.max(qs, axis=1)[1].cpu().numpy()[0]
 
-    @abstractmethod
+
     def train_(self, batch):
         pass
 
