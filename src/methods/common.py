@@ -8,7 +8,7 @@ DEFAULT_PARAMS = {
     'training_steps': 1000000,
     'batch_size': 32,
     'doom_config': f'{ROOT_DIR}/configs/e1m1.cfg',
-    'mem_size': 200000,
+    'mem_size': 300000,
     'dry_size': 10000,
     'input_shape': (4, 64, 64),
     'history': 4,
