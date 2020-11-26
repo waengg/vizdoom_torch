@@ -10,7 +10,7 @@ def build_action(a):
 
 def main():
     net = CNN(None, 3)
-    net.load_state_dict(torch.load('/home/gabrielwh/dev/vizdoom_torch/weights/basic_cnn_e1m1_1606352711.0583444.pt'))
+    net.load_state_dict(torch.load('/home/gabrielwh/dev/vizdoom_torch/weights/basic_cnn_e1m1_1606417677.3651543.pt'))
     doom = vzd.DoomGame()
     doom.load_config('/home/gabrielwh/dev/vizdoom_torch/configs/e1m1.cfg')
     doom.set_window_visible(True)
