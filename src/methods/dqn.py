@@ -6,6 +6,7 @@ import cv2
 import time
 import os
 from torch.utils.tensorboard import SummaryWriter
+import datetime
 
 from .base import BaseMethod
 from .memories.inmemory_replay import InMemoryReplay
@@ -87,7 +88,7 @@ class DQN(BaseMethod):
         src_dir = os.environ['VZD_TORCH_DIR']
         scenario = self.params['doom_config'].split('/')[-1].split('.')[0]
         log_path = f'{src_dir}/logs/{scenario}/{self.net.name}/try_{time.time()}'
-        os.makedirs(log_path)
+        os.makedirs(log_path, exist_ok=True)
         return SummaryWriter(log_dir=log_path)
 
     def train(self):
@@ -106,6 +107,7 @@ class DQN(BaseMethod):
             epi_r = 0.
 
             self.doom.new_episode()
+            start_time = time.time()
             while not self.doom.is_episode_finished():
                 # make sure that the state management makes sense
                 # confirm in original implementation
@@ -143,11 +145,11 @@ class DQN(BaseMethod):
                 epi_l += loss
                 epi_r += r
 
-
+            elapsed_time = time.time() - start_time
             avg_q = self.average_q_test()
             self.write_tensorboard(writer, epi_l, epi_r, avg_q)
             self.average_qs.append(avg_q)
-            print(f'Episode {episode} ended. Reward earned: {epi_r}. Episode loss: {epi_l}. Avg. Q after episode: {avg_q}')
+            print(f'Episode {episode} ended. Time to process: {elapsed_time}. Reward earned: {epi_r}. Episode loss: {epi_l}. Avg. Q after episode: {avg_q}')
 
             self.curr_state.clear()
             self.next_state.clear()
@@ -175,7 +177,9 @@ class DQN(BaseMethod):
 
     def average_q_test(self):
         qs = 0.
-        for s in self.test_memory.s:
+        for i in range(0, len(self.test_memory.s), 32):
+            end = min(i + 32, self.test_memory.curr)
+            s = self.test_memory.s[i:end]
             s_net = self.net.to_net(s)
             qs += torch.max(self.net.forward(s_net)).cpu().data.numpy()
         qs = qs / self.test_memory.max_size
@@ -185,6 +189,6 @@ class DQN(BaseMethod):
         base_dir = os.environ['VZD_TORCH_DIR']
         scenario = self.params['doom_config'].split('/')[-1].split('.')[0]
         scenario_dir = f'{base_dir}/weights/{scenario}'
-        os.makedirs(scenario_dir)
+        os.makedirs(scenario_dir, exist_ok=True)
         path = f'{scenario_dir}/{self.net.name}_{scenario}_{time.time()}.pt'
         torch.save(self.net.state_dict(), path)
